@@ -1,5 +1,6 @@
+// @ts-ignore
 import { ethers, network } from "hardhat";
-import { json } from "stream/consumers";
+
 import * as fs from "fs";
 import {
   FUNC,
@@ -15,6 +16,8 @@ export async function propose(
   functionToCall: string,
   proposalDescription: string
 ) {
+  console.log("---------------------------------------------");
+
   const governor = await ethers.getContract("GovernorContract");
   const box = await ethers.getContract("Box");
   console.log("Got governor and box contract");
@@ -34,7 +37,6 @@ export async function propose(
     [encodedFunctionCall],
     proposalDescription
   );
-  const proposeReceipt = await proposeTx.wait(1);
   if (developmentChains.includes(network.name)) {
     console.log("local network detected ....");
     await moveBlocks(VOTING_DELAY + 1);
@@ -42,13 +44,23 @@ export async function propose(
   console.log(
     "Getting proposal id which gets emitted after proposal is successful .."
   );
+  const proposeReceipt = await proposeTx.wait(1);
 
   const proposalId = proposeReceipt.events[0].args.proposalId;
+  const proposalState = await governor.state(proposalId);
+  const proposalSnapShot = await governor.proposalSnapshot(proposalId);
+  const proposalDeadline = await governor.proposalDeadline(proposalId);
+  console.log(`Current Proposal State: ${proposalState}`);
+  // What block # the proposal was snapshot
+  console.log(`Current Proposal Snapshot: ${proposalSnapShot}`);
+  // The block number the proposal voting expires
+  console.log(`Current Proposal Deadline: ${proposalDeadline}`);
   let proposals = JSON.parse(fs.readFileSync(proposalsFile, "utf8"));
   console.log("Saving proposal id to proposals.json ..");
 
   proposals[network.config.chainId!.toString()].push(proposalId.toString());
   fs.writeFileSync(proposalsFile, JSON.stringify(proposals));
+  console.log("---------------------------------------------");
 }
 propose([NEW_STORE_VALUE], FUNC, PROPOSAL_DESCRIPTION)
   .then(() => process.exit(0))
